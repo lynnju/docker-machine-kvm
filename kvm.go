@@ -15,7 +15,7 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/alexzorin/libvirt-go"
+	"gopkg.in/alexzorin/libvirt-go.v1"
 	"github.com/docker/machine/libmachine/drivers"
 	"github.com/docker/machine/libmachine/log"
 	"github.com/docker/machine/libmachine/mcnflag"
@@ -656,9 +656,9 @@ func (d *Driver) GetIP() (string, error) {
 	 *        be smarter about selecting which algorithm to use
 	 */
 	ip, err := d.getIPByMACFromLeaseFile(mac)
-	if ip == "" {
+	/*if ip == "" {
 		ip, err = d.getIPByMacFromSettings(mac)
-	}
+	}*/
 	log.Debugf("Unable to locate IP address for MAC %s", mac)
 	return ip, err
 }
