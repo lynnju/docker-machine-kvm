@@ -52,15 +52,28 @@ const (
       <source file='{{.DiskPath}}'/>
       <target dev='hda' bus='ide'/>
     </disk>
+    {{if .VNCEnabled}}
     <graphics type='vnc' autoport='yes' listen='127.0.0.1'>
       <listen type='address' address='127.0.0.1'/>
     </graphics>
+    {{end}}
     <interface type='network'>
       <source network='{{.Network}}'/>
     </interface>
     <interface type='network'>
       <source network='{{.PrivateNetwork}}'/>
+      <source network='{{.PrivateNetwork}}'/>
     </interface>
+    {{if .SharedPath}}
+    <filesystem type='mount' accessmode='{{.SharedPathAccessMode}}'>
+      <source dir='{{.SharedPath}}' />
+      <target dir='hostShared' />
+      {{if .SharedPathWritable}}
+      {{else}}
+      <readonly />
+      {{end}}
+    </filesystem>
+    {{end}}
   </devices>
 </domain>`
 	networkXML = `<network>
@@ -85,9 +98,13 @@ type Driver struct {
 	Boot2DockerURL   string
 	CaCertPath       string
 	PrivateKeyPath   string
+	SharedPath       string
+	SharedPathAccessMode string
+	SharedPathWritable bool
 	DiskPath         string
 	CacheMode        string
 	IOMode           string
+	VNCEnabled       bool
 	connectionString string
 	conn             *libvirt.VirConnection
 	VM               *libvirt.VirDomain
@@ -133,12 +150,24 @@ func (d *Driver) GetCreateFlags() []mcnflag.Flag {
 			Usage: "Disk IO mode: threads, native",
 			Value: "threads",
 		},
-		/* Not yet implemented
-		mcnflag.Flag{
-			Name:  "kvm-no-share",
-			Usage: "Disable the mount of your home directory",
+		mcnflag.StringFlag{
+			Name:  "kvm-shared-path",
+			Usage: "Mount a host path within the KVM guest via 9p virtio",
+			Value: "",
 		},
-		*/
+		mcnflag.StringFlag{
+			Name:  "kvm-shared-path-access-mode",
+			Usage: "Mode via which to access shared path content. One of: 'mapped', 'passthrough', 'none'. Default: passthrough",
+			Value: "passthrough",
+		},
+		mcnflag.BoolFlag{
+			Name: "kvm-shared-path-writable",
+			Usage: "Make shared host path mount writable by guest",
+		},
+		mcnflag.BoolFlag{
+			Name: "kvm-enable-vnc",
+			Usage: "Enabled remote access via VNC for localhost",
+		},
 	}
 }
 
@@ -191,6 +220,13 @@ func (d *Driver) SetConfigFromFlags(flags drivers.DriverOptions) error {
 	d.SSHUser = "docker"
 	d.SSHPort = 22
 	d.DiskPath = d.ResolveStorePath(fmt.Sprintf("%s.img", d.MachineName))
+
+	d.SharedPath = flags.String("kvm-shared-path")
+	d.SharedPathAccessMode = flags.String("kvm-shared-path-access-mode")
+	d.SharedPathWritable = flags.Bool("kvm-shared-path-writable")
+
+	d.VNCEnabled = flags.Bool("kvm-enable-vnc")
+
 	return nil
 }
 
